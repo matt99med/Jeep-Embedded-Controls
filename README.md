@@ -85,4 +85,5 @@ using two custom-designed PCBs, 3D printed enclosures, and a companion iOS app.
 ## Author
 
 **Matthew Medina**
+
 California State University Fullerton — BS/MS Computer Engineering

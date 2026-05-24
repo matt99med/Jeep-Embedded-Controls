@@ -75,15 +75,18 @@ using two custom-designed PCBs, 3D printed enclosures, and a companion iOS app.
 ## Status
 
 - [x] Hardware design complete (KiCad schematics)
-- [x] PCB design in progress
-- [ ] Main controller firmware
-- [ ] Keyfob firmware
-- [ ] iOS app
-- [ ] PCB fabrication
-- [ ] System integration
+- [x] Main controller firmware (ESP-IDF / FreeRTOS)
+- [x] Keyfob firmware (ESP-IDF / ESP-NOW)
+- [x] Web app (MQTT + Google Maps)
+- [ ] PCB layout (KiCad)
+- [ ] PCB fabrication (JLCPCB)
+- [ ] 3D printed enclosures (Fusion 360)
+- [ ] System integration and testing
 
 ## Author
 
-**Matthew Medina**
+**Matthew Medina**  
 
-California State University Fullerton — BS/MS Computer Engineering
+California State University Fullerton — BS/MS Computer Engineering  
+
+GitHub: [matt99med](https://github.com/matt99med)

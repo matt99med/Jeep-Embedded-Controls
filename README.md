@@ -61,7 +61,6 @@ using two custom-designed PCBs, 3D printed enclosures, and a companion iOS app.
     ├── pcb/                # PCB layout files
     ├── fusion360/          # 3D enclosure design exports
     └── README.md
-└── README.md
 
 ## System Architecture
 

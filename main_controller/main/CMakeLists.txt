@@ -1,2 +1,3 @@
 idf_component_register(SRCS "main.c"
-                    INCLUDE_DIRS ".")
+                             "gpio_handler.c"
+                        INCLUDE_DIRS ".")

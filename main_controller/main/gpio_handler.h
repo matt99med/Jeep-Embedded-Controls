@@ -47,8 +47,8 @@ void set_blink(bool state);
 bool get_sw1(void);
 bool get_sw2(void);
 bool get_sw3(void);
-bool get_sw4(bool state);
-bool get_sw5(bool state);
+bool get_sw4(void);
+bool get_sw5(void);
 bool get_hood_sw(void);
 
 #endif // GPIO_HANDLER_H

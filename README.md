@@ -54,23 +54,24 @@ using two custom-designed PCBs, 3D printed enclosures, and a companion iOS app.
 
 ## Repository Structure
 
-Jeep-Embedded-Controls/
-├── main_controller/     # ESP32 firmware for main jeep controller
-├── keyfob/             # ESP32-C3 firmware for keyfob
-├── schematics/         # KiCad schematic exports
-├── pcb/                # PCB layout files
-├── fusion360/          # 3D enclosure design exports
+    Jeep-Embedded-Controls/
+    ├── main_controller/     # ESP32 firmware for main jeep controller
+    ├── keyfob/             # ESP32-C3 firmware for keyfob
+    ├── schematics/         # KiCad schematic exports
+    ├── pcb/                # PCB layout files
+    ├── fusion360/          # 3D enclosure design exports
+    └── README.md
 └── README.md
 
 ## System Architecture
 
-[Keyfob ESP32-C3] <--ESP-NOW--> [Main ESP32]
-|
-[SIM7600G-H]
-|
-[Hologram IoT]
-|
-[iOS App]
+    [Keyfob ESP32-C3] <--ESP-NOW--> [Main ESP32]
+                                          |
+                                  [SIM7600G-H]
+                                          |
+                                  [Hologram IoT]
+                                          |
+                                  [iOS App]
 
 ## Status
 

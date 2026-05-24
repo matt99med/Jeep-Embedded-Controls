@@ -6,7 +6,7 @@
 
 // ─── Keyfob MAC address ─────────────────────────────
 // Update this once you flash the keyfob and get its MAC
-#define KEYFOB_MAC {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+#define KEYFOB_MAC {0x1c, 0xdb, 0xd4, 0xe0, 0x86, 0xdc}
 
 // ─── Command definitions ────────────────────────────
 typedef enum {

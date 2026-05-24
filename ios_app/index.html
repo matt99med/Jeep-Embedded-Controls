@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Jeep Tracker</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA9cGYMp--oIDaVW1ewwVLRqt3AMhc8mFM"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a;
+      color: #ffffff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #111111;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #222;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    #status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #444;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    #status-dot.connected { background: #22c55e; }
+    #status-dot.disconnected { background: #ef4444; }
+
+    #connection-label {
+      font-size: 13px;
+      color: #888;
+    }
+
+    #map {
+      flex: 1;
+      width: 100%;
+    }
+
+    .bottom-panel {
+      background: #111111;
+      border-top: 1px solid #222;
+      padding: 16px 20px;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .system-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #armed-indicator {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #1a3a1a;
+      color: #22c55e;
+      border: 1px solid #22c55e44;
+    }
+
+    #armed-indicator.armed {
+      background: #3a1a1a;
+      color: #ef4444;
+      border-color: #ef444444;
+    }
+
+    #coords {
+      font-size: 12px;
+      color: #666;
+      font-family: monospace;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:active { opacity: 0.7; }
+
+    #btn-location {
+      background: #2563eb;
+      color: white;
+    }
+
+    #btn-location:disabled {
+      background: #1e3a6e;
+      color: #555;
+      cursor: not-allowed;
+    }
+
+    #last-update {
+      font-size: 11px;
+      color: #555;
+      text-align: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🚙 Jeep Tracker</h1>
+  <div>
+    <span id="status-dot" class="disconnected"></span>
+    <span id="connection-label">Connecting...</span>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div class="bottom-panel">
+  <div class="status-bar">
+    <div class="system-status">
+      <span>System:</span>
+      <span id="armed-indicator">DISARMED</span>
+    </div>
+    <div id="coords">No fix yet</div>
+  </div>
+
+  <div class="btn-row">
+    <button id="btn-location" disabled onclick="requestLocation()">
+      📍 Request Location
+    </button>
+  </div>
+
+  <div id="last-update">Waiting for connection...</div>
+</div>
+
+<script>
+  // ── Map setup ──────────────────────────────────────
+  let map, marker;
+
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 33.8816, lng: -117.8854 }, // CSUF default
+      zoom: 15,
+      styles: [
+        { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#8888aa' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
+        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a2a4a' }] },
+        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#111133' }] },
+        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1117' }] },
+        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      ]
+    });
+  }
+
+  function updateMap(lat, lon) {
+    const pos = { lat, lng: lon };
+    map.setCenter(pos);
+    map.setZoom(17);
+
+    if (marker) {
+      marker.setPosition(pos);
+    } else {
+      marker = new google.maps.Marker({
+        position: pos,
+        map: map,
+        title: '1995 Jeep Wrangler',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#2563eb',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        }
+      });
+    }
+  }
+
+  // ── MQTT setup ─────────────────────────────────────
+  const BROKER   = 'wss://b354244753214e4a8256c8d36e8a98ad.s1.eu.hivemq.cloud:8884/mqtt';
+  const USER     = 'jeep_controller';
+  const PASS     = '1995Jeep';
+
+  const TOPIC_GPS_REQ  = 'jeep/gps/request';
+  const TOPIC_GPS_DATA = 'jeep/gps/data';
+  const TOPIC_STATUS   = 'jeep/status';
+
+  const client = mqtt.connect(BROKER, {
+    username: USER,
+    password: PASS,
+    reconnectPeriod: 3000,
+  });
+
+  client.on('connect', () => {
+    console.log('MQTT connected');
+    document.getElementById('status-dot').className = 'connected';
+    document.getElementById('connection-label').textContent = 'Connected';
+    document.getElementById('btn-location').disabled = false;
+    document.getElementById('last-update').textContent = 'Connected to broker';
+
+    client.subscribe(TOPIC_GPS_DATA);
+    client.subscribe(TOPIC_STATUS);
+  });
+
+  client.on('disconnect', () => {
+    document.getElementById('status-dot').className = 'disconnected';
+    document.getElementById('connection-label').textContent = 'Disconnected';
+    document.getElementById('btn-location').disabled = true;
+  });
+
+  client.on('error', (err) => {
+    console.error('MQTT error:', err);
+    document.getElementById('connection-label').textContent = 'Error';
+  });
+
+  client.on('message', (topic, message) => {
+    const payload = message.toString();
+    console.log('Message received:', topic, payload);
+
+    if (topic === TOPIC_GPS_DATA) {
+      try {
+        const data = JSON.parse(payload);
+
+        if (data.error) {
+          document.getElementById('last-update').textContent = 
+            'No GPS fix available — try again';
+          return;
+        }
+
+        const lat = parseFloat(data.lat);
+        const lon = parseFloat(data.lon);
+
+        updateMap(lat, lon);
+
+        document.getElementById('coords').textContent = 
+          `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+
+        const now = new Date();
+        document.getElementById('last-update').textContent = 
+          `Last update: ${now.toLocaleTimeString()}`;
+
+      } catch (e) {
+        console.error('Failed to parse GPS data:', e);
+      }
+    }
+
+    if (topic === TOPIC_STATUS) {
+      const indicator = document.getElementById('armed-indicator');
+      if (payload === 'armed') {
+        indicator.textContent = 'ARMED';
+        indicator.className = 'armed';
+      } else {
+        indicator.textContent = 'DISARMED';
+        indicator.className = '';
+      }
+    }
+  });
+
+  // ── Request location ───────────────────────────────
+  function requestLocation() {
+    client.publish(TOPIC_GPS_REQ, 'request');
+    document.getElementById('last-update').textContent = 
+      'Requesting location...';
+    document.getElementById('btn-location').disabled = true;
+
+    // Re-enable after 10 seconds
+    setTimeout(() => {
+      document.getElementById('btn-location').disabled = false;
+    }, 10000);
+  }
+
+  // Init map on load
+  window.onload = initMap;
+</script>
+
+</body>
+</html>

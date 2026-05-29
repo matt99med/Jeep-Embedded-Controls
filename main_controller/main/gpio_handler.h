@@ -11,8 +11,8 @@
 #define PIN_FOG_LIGHT    GPIO_NUM_18
 #define PIN_LIGHTBAR     GPIO_NUM_5
 #define PIN_IGN_KILL     GPIO_NUM_2
-#define PIN_SIREN        GPIO_NUM_26
-#define PIN_BLINK        GPIO_NUM_33
+#define PIN_SIREN        GPIO_NUM_3
+#define PIN_BLINK        GPIO_NUM_1
 
 // ─── Input GPIO pins ────────────────────────────────
 #define PIN_SW1          GPIO_NUM_36

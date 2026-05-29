@@ -15,9 +15,6 @@ cellular for remote GPS tracking accessible from any device.
 
 > Live GPS tracker web app: [Jeep Tracker](https://matt99med.github.io/Jeep-Embedded-Controls/)
 
-## PCB Preview
-![Keyfob PCB Top](images/JeepKeyfob_3D_Top.png)
-
 ## Features
 
 - Remote kill switch via custom ESP-NOW keyfob (range ~200m)
@@ -38,9 +35,10 @@ cellular for remote GPS tracking accessible from any device.
 - ULN2803 Darlington array (8-channel output driver)
 - SP721ABG overvoltage/ESD input protection
 - LM25576-Q1 automotive buck converter (12V → 5V, 3A)
-- LM74810-Q1 automotive ideal diode/battery protection
+- SS34 Schottky diode (reverse polarity protection)
+- SMAJ14A TVS diode (overvoltage protection)
 - Custom 2-layer KiCad PCB
-- Custom Fusion 360 engine bay enclosure
+- Custom Fusion 360 engine bay enclosure (in progress)
 
 ### Keyfob
 - ESP32-C3 Super Mini (160MHz RISC-V, Wi-Fi, BT)
@@ -51,7 +49,7 @@ cellular for remote GPS tracking accessible from any device.
 - 3 LED indicators (Red=Armed, Green=Disarmed, Blue=Panic)
 - Slide power switch
 - Custom 2-layer KiCad PCB (45.5 x 38.5mm)
-- Custom Fusion 360 keyfob enclosure
+- Custom Fusion 360 keyfob enclosure (in progress)
 
 ## Tech Stack
 
@@ -84,9 +82,10 @@ cellular for remote GPS tracking accessible from any device.
     │   │   ├── led_handler.c   # LED status indicators
     │   │   └── espnow_keyfob.c # ESP-NOW command transmission
     │   └── gerbers/            # Keyfob PCB Gerber files for fabrication
+    ├── pcb/                    # Main controller PCB layout and Gerber files
     ├── schematics/             # KiCad schematic PDF exports
-    ├── pcb/                    # Main controller PCB layout (in progress)
-    ├── fusion360/              # 3D enclosure STL exports
+    ├── fusion360/              # 3D enclosure designs (in progress)
+    ├── images/                 # PCB 3D renders and project photos
     ├── index.html              # GPS tracker web app
     └── README.md
 
@@ -107,17 +106,21 @@ cellular for remote GPS tracking accessible from any device.
 
 ## PCB Design
 
-### Keyfob PCB (Complete)
+### Keyfob PCB
 - 2-layer board, 45.5 x 38.5mm
 - JLCPCB design rules (0.2mm min clearance, 0.2mm min trace)
 - GND copper pour on B.Cu
 - M2 mounting holes in all 4 corners
 - USB-C edge connector for charging
+- **Ordered from JLCPCB — awaiting delivery**
 
-### Main Controller PCB (In Progress)
-- 2-layer board
-- Automotive environment rated
-- Engine bay rated enclosure
+### Main Controller PCB
+- 2-layer board, 120 x 100mm
+- Automotive environment rated design
+- GND copper pour on B.Cu
+- M3 mounting holes in all 4 corners
+- Automotive grade power supply circuit
+- **Ordered from JLCPCB — awaiting delivery**
 
 ## Firmware Architecture
 
@@ -136,22 +139,30 @@ cellular for remote GPS tracking accessible from any device.
 | CMD_UNLOCK | 0x02 | Disarm siren + release kill switch |
 | CMD_PANIC | 0x03 | Trigger siren immediately |
 
+### MQTT Topics
+| Topic | Direction | Payload |
+|---|---|---|
+| jeep/gps/request | App → ESP32 | "request" |
+| jeep/gps/data | ESP32 → App | {"lat":xx.xxx,"lon":xx.xxx} |
+| jeep/status | ESP32 → App | "armed" or "disarmed" |
+
 ## Status
 
 - [x] Hardware design complete (KiCad schematics — both boards)
 - [x] Main controller firmware (ESP-IDF / FreeRTOS)
 - [x] Keyfob firmware (ESP-IDF / ESP-NOW)
 - [x] Web app (MQTT + Google Maps — live at GitHub Pages)
-- [x] Keyfob PCB layout complete (Gerbers ready for fabrication)
-- [ ] Main controller PCB layout (KiCad)
-- [ ] PCB fabrication (JLCPCB — ordering both boards together)
-- [ ] 3D printed enclosures (Fusion 360)
+- [x] Keyfob PCB layout complete (Gerbers generated)
+- [x] Main controller PCB layout complete (Gerbers generated)
+- [x] PCBs ordered from JLCPCB — awaiting delivery
+- [ ] 3D printed enclosures (Fusion 360 — in progress)
 - [ ] System integration and testing
+- [ ] Final installation in 1995 Jeep Wrangler
 
 ## Author
 
 **Matthew Medina**  
 
-California State University Fullerton — BS/MS Computer Engineering  
-
+California State University Fullerton — BS/MS Computer Engineering 
+ 
 GitHub: [matt99med](https://github.com/matt99med)

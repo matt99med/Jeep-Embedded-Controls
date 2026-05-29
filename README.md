@@ -15,6 +15,14 @@ cellular for remote GPS tracking accessible from any device.
 
 > Live GPS tracker web app: [Jeep Tracker](https://matt99med.github.io/Jeep-Embedded-Controls/)
 
+## PCB Preview
+
+### Keyfob
+![Keyfob PCB Top](images/JeepKeyfob_3D_Top.png)
+
+### Main Controller
+![Main Controller PCB Top](images/JeepController_3D_Top.png)
+
 ## Features
 
 - Remote kill switch via custom ESP-NOW keyfob (range ~200m)
@@ -164,5 +172,5 @@ cellular for remote GPS tracking accessible from any device.
 **Matthew Medina**  
 
 California State University Fullerton — BS/MS Computer Engineering 
- 
+
 GitHub: [matt99med](https://github.com/matt99med)

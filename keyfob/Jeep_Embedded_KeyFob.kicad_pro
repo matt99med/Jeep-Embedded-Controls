@@ -39,9 +39,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 2.2,
-          "height": 2.2,
-          "width": 2.2
+          "drill": 0.0,
+          "height": 0.8,
+          "width": 1.0
         },
         "silk_line_width": 0.1,
         "silk_text_italic": false,
@@ -50,10 +50,16 @@
         "silk_text_thickness": 0.1,
         "silk_text_upright": false,
         "zones": {
-          "min_clearance": 0.2
+          "min_clearance": 0.0
         }
       },
-      "diff_pair_dimensions": [],
+      "diff_pair_dimensions": [
+        {
+          "gap": 0.0,
+          "via_gap": 0.0,
+          "width": 0.0
+        }
+      ],
       "drc_exclusions": [],
       "meta": {
         "version": 2
@@ -102,7 +108,7 @@
         "silk_over_copper": "warning",
         "silk_overlap": "warning",
         "skew_out_of_range": "error",
-        "solder_mask_bridge": "error",
+        "solder_mask_bridge": "ignore",
         "starved_thermal": "error",
         "text_height": "warning",
         "text_on_edge_cuts": "error",
@@ -124,9 +130,9 @@
       },
       "rules": {
         "max_error": 0.005,
-        "min_clearance": 0.0,
+        "min_clearance": 0.2,
         "min_connection": 0.0,
-        "min_copper_edge_clearance": 0.5,
+        "min_copper_edge_clearance": 0.3,
         "min_groove_width": 0.0,
         "min_hole_clearance": 0.25,
         "min_hole_to_hole": 0.25,
@@ -136,10 +142,10 @@
         "min_silk_clearance": 0.0,
         "min_text_height": 0.8,
         "min_text_thickness": 0.08,
-        "min_through_hole_diameter": 0.3,
+        "min_through_hole_diameter": 0.2,
         "min_track_width": 0.2,
         "min_via_annular_width": 0.1,
-        "min_via_diameter": 0.5,
+        "min_via_diameter": 0.4,
         "solder_mask_to_copper_clearance": 0.0,
         "use_height_for_length_calcs": true
       },
@@ -187,7 +193,9 @@
           "td_width_to_size_filter_ratio": 0.9
         }
       ],
-      "track_widths": [],
+      "track_widths": [
+        0.0
+      ],
       "tuning_pattern_settings": {
         "diff_pair_defaults": {
           "corner_radius_percentage": 80,
@@ -214,7 +222,12 @@
           "spacing": 0.6
         }
       },
-      "via_dimensions": [],
+      "via_dimensions": [
+        {
+          "diameter": 0.0,
+          "drill": 0.0
+        }
+      ],
       "zones_allow_external_fillets": false
     },
     "ipc2581": {
@@ -224,7 +237,7 @@
       "internal_id": "",
       "mfg": "",
       "mpn": "",
-      "sch_revision": "Update"
+      "sch_revision": ""
     },
     "layer_pairs": [],
     "layer_presets": [],
@@ -472,7 +485,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "Jeep_Embedded_Controls_Main.kicad_pro",
+    "filename": "Jeep_Embedded_KeyFob.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -490,11 +503,19 @@
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": 2147483647,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.2,
+        "track_width": 0.25,
         "tuning_profile": "",
         "via_diameter": 0.6,
         "via_drill": 0.3,
         "wire_width": 6
+      },
+      {
+        "name": "Power",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": 0,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.5,
+        "tuning_profile": ""
       }
     ],
     "meta": {
@@ -502,18 +523,19 @@
     },
     "net_colors": null,
     "netclass_assignments": null,
-    "netclass_patterns": []
+    "netclass_patterns": [
+      {
+        "netclass": "Power",
+        "pattern": "+3.3V"
+      }
+    ]
   },
   "pcbnew": {
     "last_paths": {
-      "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "../../../Downloads/Jeep Project/",
-      "pos_files": "",
+      "plot": "C:/Users/matt9/Downloads/Jeep Porject/",
       "specctra_dsn": "",
-      "step": "",
-      "svg": "",
       "vrml": ""
     },
     "page_layout_descr_file": ""
@@ -546,15 +568,33 @@
           "show": true
         },
         {
+          "group_by": false,
+          "label": "Qty",
+          "name": "${QUANTITY}",
+          "show": true
+        },
+        {
           "group_by": true,
           "label": "Value",
           "name": "Value",
           "show": true
         },
         {
-          "group_by": false,
-          "label": "Datasheet",
-          "name": "Datasheet",
+          "group_by": true,
+          "label": "DNP",
+          "name": "${DNP}",
+          "show": true
+        },
+        {
+          "group_by": true,
+          "label": "Exclude from BOM",
+          "name": "${EXCLUDE_FROM_BOM}",
+          "show": true
+        },
+        {
+          "group_by": true,
+          "label": "Exclude from Board",
+          "name": "${EXCLUDE_FROM_BOARD}",
           "show": true
         },
         {
@@ -565,98 +605,26 @@
         },
         {
           "group_by": false,
-          "label": "Qty",
-          "name": "${QUANTITY}",
-          "show": true
-        },
-        {
-          "group_by": true,
-          "label": "DNP",
-          "name": "${DNP}",
+          "label": "Datasheet",
+          "name": "Datasheet",
           "show": true
         },
         {
           "group_by": false,
-          "label": "Exclude from Board",
-          "name": "${EXCLUDE_FROM_BOARD}",
+          "label": "Check_prices",
+          "name": "Check_prices",
           "show": false
         },
         {
           "group_by": false,
-          "label": "Exclude from BOM",
-          "name": "${EXCLUDE_FROM_BOM}",
+          "label": "MANUFACTURER",
+          "name": "MANUFACTURER",
           "show": false
         },
         {
           "group_by": false,
-          "label": "ComponentLink1Description",
-          "name": "ComponentLink1Description",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "ComponentLink1URL",
-          "name": "ComponentLink1URL",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "ComponentLink2Description",
-          "name": "ComponentLink2Description",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "ComponentLink2URL",
-          "name": "ComponentLink2URL",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "ComponentLink3Description",
-          "name": "ComponentLink3Description",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "ComponentLink3URL",
-          "name": "ComponentLink3URL",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "DatasheetVersion",
-          "name": "DatasheetVersion",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "DigiKey_Part_Number",
-          "name": "DigiKey_Part_Number",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Green",
-          "name": "Green",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Halogen-free",
-          "name": "Halogen-free",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "ID (max)",
-          "name": "ID (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "IDpuls (max)",
-          "name": "IDpuls (max)",
+          "label": "MAXIMUM_PACKAGE_HEIGHT",
+          "name": "MAXIMUM_PACKAGE_HEIGHT",
           "show": false
         },
         {
@@ -673,116 +641,32 @@
         },
         {
           "group_by": false,
-          "label": "MPN",
-          "name": "MPN",
+          "label": "PARTREV",
+          "name": "PARTREV",
           "show": false
         },
         {
           "group_by": false,
-          "label": "Manufacturer",
-          "name": "Manufacturer",
+          "label": "Package",
+          "name": "Package",
           "show": false
         },
         {
           "group_by": false,
-          "label": "Mounting Technology",
-          "name": "Mounting Technology",
+          "label": "Price",
+          "name": "Price",
           "show": false
         },
         {
           "group_by": false,
-          "label": "OC_FARNELL",
-          "name": "OC_FARNELL",
+          "label": "STANDARD",
+          "name": "STANDARD",
           "show": false
         },
         {
           "group_by": false,
-          "label": "OC_NEWARK",
-          "name": "OC_NEWARK",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "PACKAGE",
-          "name": "PACKAGE",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "PackageDescription",
-          "name": "PackageDescription",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "PackageReference",
-          "name": "PackageReference",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Packing",
-          "name": "Packing",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "PartNumber",
-          "name": "PartNumber",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Polarity",
-          "name": "Polarity",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Ptot (max)",
-          "name": "Ptot (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "QG",
-          "name": "QG",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "RDS (on) (max)",
-          "name": "RDS (on) (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "RDS (on) (max) (@4.5V)",
-          "name": "RDS (on) (max) (@4.5V)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Rth",
-          "name": "Rth",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "RthJA (max)",
-          "name": "RthJA (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "RthJC (max)",
-          "name": "RthJC (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "SUPPLIER",
-          "name": "SUPPLIER",
+          "label": "Sim.Device",
+          "name": "Sim.Device",
           "show": false
         },
         {
@@ -793,104 +677,20 @@
         },
         {
           "group_by": false,
+          "label": "Sim.Type",
+          "name": "Sim.Type",
+          "show": false
+        },
+        {
+          "group_by": false,
           "label": "SnapEDA_Link",
           "name": "SnapEDA_Link",
           "show": false
         },
         {
           "group_by": false,
-          "label": "Supplier 1",
-          "name": "Supplier 1",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier 2",
-          "name": "Supplier 2",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier 3",
-          "name": "Supplier 3",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier 4",
-          "name": "Supplier 4",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier 5",
-          "name": "Supplier 5",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier 6",
-          "name": "Supplier 6",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier Part Number 1",
-          "name": "Supplier Part Number 1",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier Part Number 2",
-          "name": "Supplier Part Number 2",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier Part Number 3",
-          "name": "Supplier Part Number 3",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier Part Number 4",
-          "name": "Supplier Part Number 4",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier Part Number 5",
-          "name": "Supplier Part Number 5",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Supplier Part Number 6",
-          "name": "Supplier Part Number 6",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "VDS (max)",
-          "name": "VDS (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "VGS(th) (max)",
-          "name": "VGS(th) (max)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "VGS(th) (min)",
-          "name": "VGS(th) (min)",
-          "show": false
-        },
-        {
-          "group_by": false,
-          "label": "Check_prices",
-          "name": "Check_prices",
+          "label": "Availability",
+          "name": "Availability",
           "show": false
         },
         {
@@ -908,7 +708,7 @@
       ],
       "filter_string": "",
       "group_symbols": true,
-      "include_excluded_from_bom": false,
+      "include_excluded_from_bom": true,
       "name": "",
       "sort_asc": true,
       "sort_field": "Reference"
@@ -949,42 +749,18 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "Jeep_Embedded_Controls_Main.kicad_sch",
-        "name": "Jeep_Embedded_Controls_Main",
-        "uuid": "1f975819-1acf-4a0a-8afb-bedd5315d71c"
+        "filename": "Jeep_Embedded_KeyFob.kicad_sch",
+        "name": "Root",
+        "uuid": "170a57d7-1e75-4848-a8b2-380107d512a3"
       }
     ],
-    "used_designators": "D5-6",
+    "used_designators": "",
     "variants": []
   },
   "sheets": [
     [
-      "1f975819-1acf-4a0a-8afb-bedd5315d71c",
-      "Jeep_Embedded_Controls_Main"
-    ],
-    [
-      "43912a6b-30a2-4b99-9ad7-4d36e518a53d",
-      "01_power"
-    ],
-    [
-      "afc59f40-7a29-4913-a15d-563ac68b45bc",
-      "02_ESP32"
-    ],
-    [
-      "a4abaa6d-8516-40bb-800c-555bcc1ff12b",
-      "03_inputs"
-    ],
-    [
-      "9dc6f297-0bb3-49cc-a752-9ee5ecef10f7",
-      "04_outputs"
-    ],
-    [
-      "64787681-28f1-45da-be6b-3438e2eb67bd",
-      "05_GPS"
-    ],
-    [
-      "507a6429-49b1-4fcf-ab5b-624d8835a1bb",
-      "06_LED"
+      "170a57d7-1e75-4848-a8b2-380107d512a3",
+      "Root"
     ]
   ],
   "text_variables": {},

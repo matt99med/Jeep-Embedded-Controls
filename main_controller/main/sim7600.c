@@ -1,258 +1,196 @@
-#include "sim7600.h"
-#include "gpio_handler.h"
-#include "esp_log.h"
-#include "driver/uart.h"
+/*
+ * sim7600.c - SIM7600G-H power control, GPS fix, MQTT publish over 4G.
+ *
+ * This module owns the modem power rail (MP2307 EN) and the PWRKEY
+ * sequence. AT-command exchange is intentionally minimal/illustrative;
+ * fill in the broker credentials via NVS/menuconfig (see secrets note in
+ * config.h) and expand the MQTT/AT flow to taste.
+ */
+#include "config.h"
+#include "system_state.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
+#include "driver/uart.h"
+#include "esp_log.h"
 #include <string.h>
 #include <stdio.h>
 
-static const char *TAG = "SIM7600";
+static const char *TAG = "sim7600";
+static bool s_modem_on = false;
 
-// ─── Send AT command and wait for response ──────────
-static bool at_send(const char *cmd, const char *expected,
-                    uint32_t timeout_ms)
+#define UART_BUF 1024
+
+void sim7600_init_uart(void)
 {
-    char buf[512] = {0};
+    uart_config_t cfg = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    uart_driver_install(SIM_UART_PORT, UART_BUF * 2, 0, 0, NULL, 0);
+    uart_param_config(SIM_UART_PORT, &cfg);
+    uart_set_pin(SIM_UART_PORT, PIN_SIM_TX, PIN_SIM_RX,
+                 UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+}
 
-    uart_write_bytes(SIM_UART_NUM, cmd, strlen(cmd));
-    uart_write_bytes(SIM_UART_NUM, "\r\n", 2);
+/* Blocking AT send + wait for "OK"/"ERROR". Returns true on OK. */
+static bool at_cmd(const char *cmd, int timeout_ms)
+{
+    uart_flush_input(SIM_UART_PORT);
+    uart_write_bytes(SIM_UART_PORT, cmd, strlen(cmd));
+    uart_write_bytes(SIM_UART_PORT, "\r\n", 2);
 
-    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
-
-    int len = uart_read_bytes(SIM_UART_NUM, buf,
-                              sizeof(buf) - 1,
-                              pdMS_TO_TICKS(100));
-    if (len > 0) {
-        buf[len] = '\0';
-        ESP_LOGI(TAG, "AT response: %s", buf);
-        if (strstr(buf, expected)) {
-            return true;
+    char buf[UART_BUF];
+    int total = 0;
+    int waited = 0;
+    while (waited < timeout_ms) {
+        int n = uart_read_bytes(SIM_UART_PORT, (uint8_t *)buf + total,
+                                sizeof(buf) - 1 - total, pdMS_TO_TICKS(100));
+        if (n > 0) {
+            total += n;
+            buf[total] = '\0';
+            if (strstr(buf, "OK"))    return true;
+            if (strstr(buf, "ERROR")) return false;
         }
+        waited += 100;
     }
+    ESP_LOGW(TAG, "AT timeout: %s", cmd);
     return false;
 }
 
-// ─── Init UART for SIM7600 ──────────────────────────
-void sim7600_init(void)
+/* PWRKEY power-up sequence per Waveshare doc:
+ *   HIGH 500ms -> LOW >=1s -> release (return pin to input/high-Z). */
+static void pwrkey_pulse(void)
 {
-    uart_config_t uart_config = {
-        .baud_rate  = SIM_UART_BAUD,
-        .data_bits  = UART_DATA_8_BITS,
-        .parity     = UART_PARITY_DISABLE,
-        .stop_bits  = UART_STOP_BITS_1,
-        .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
-    };
-
-    uart_driver_install(SIM_UART_NUM, SIM_UART_BUF, 0, 0, NULL, 0);
-    uart_param_config(SIM_UART_NUM, &uart_config);
-    uart_set_pin(SIM_UART_NUM,
-                 SIM_UART_TX,
-                 SIM_UART_RX,
-                 UART_PIN_NO_CHANGE,
-                 UART_PIN_NO_CHANGE);
-
-    ESP_LOGI(TAG, "UART initialised for SIM7600");
+    gpio_set_direction(PIN_SIM_PWRKEY, GPIO_MODE_OUTPUT);
+    gpio_set_level(PIN_SIM_PWRKEY, 1);
+    vTaskDelay(pdMS_TO_TICKS(PWRKEY_HIGH_MS));
+    gpio_set_level(PIN_SIM_PWRKEY, 0);
+    vTaskDelay(pdMS_TO_TICKS(PWRKEY_LOW_MS));
+    gpio_set_direction(PIN_SIM_PWRKEY, GPIO_MODE_INPUT);  /* release */
 }
 
-// ─── Power on SIM7600 ───────────────────────────────
 bool sim7600_power_on(void)
 {
-    ESP_LOGI(TAG, "Powering on SIM7600...");
+    if (s_modem_on) return true;
 
-    // Pull PWRKEY low for 500ms to power on
-    gpio_set_level(PIN_SIM_PWRKEY, 1);
-    vTaskDelay(pdMS_TO_TICKS(500));
-    gpio_set_level(PIN_SIM_PWRKEY, 0);
+    gpio_set_level(PIN_SIM_PWR_EN, 1);     /* enable 3.8V rail            */
+    vTaskDelay(pdMS_TO_TICKS(100));        /* let rail settle             */
+    pwrkey_pulse();
 
-    // Wait for module to boot
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    gpio_set_level(PIN_LED_CELL, LED_ON);
 
-    // Test AT communication
-    for (int i = 0; i < 5; i++) {
-        if (at_send("AT", "OK", 1000)) {
-            ESP_LOGI(TAG, "SIM7600 is online");
+    /* Wait for the module to become AT-responsive (can take ~10s). */
+    for (int i = 0; i < 30; i++) {
+        if (at_cmd("AT", 500)) {
+            s_modem_on = true;
+            at_cmd("ATE0", 1000);          /* echo off                    */
+            ESP_LOGI(TAG, "modem up");
             return true;
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
-
-    ESP_LOGE(TAG, "SIM7600 failed to respond");
+    ESP_LOGE(TAG, "modem failed to respond");
+    gpio_set_level(PIN_LED_CELL, LED_OFF);
     return false;
 }
 
-// ─── Get GPS coordinates ────────────────────────────
-bool sim7600_get_gps(float *latitude, float *longitude)
+void sim7600_power_off(void)
 {
-    char buf[256] = {0};
-
-    // Enable GPS
-    at_send("AT+CGPS=1,1", "OK", 1000);
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
-    // Request GPS info
-    uart_write_bytes(SIM_UART_NUM, "AT+CGPSINFO\r\n", 13);
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
-    int len = uart_read_bytes(SIM_UART_NUM, buf,
-                              sizeof(buf) - 1,
-                              pdMS_TO_TICKS(100));
-    if (len <= 0) {
-        ESP_LOGW(TAG, "No GPS response");
-        return false;
-    }
-
-    buf[len] = '\0';
-    ESP_LOGI(TAG, "GPS raw: %s", buf);
-
-    // Parse +CGPSINFO: lat,N/S,lon,E/W,...
-    float lat_raw, lon_raw;
-    char ns, ew;
-    char *info = strstr(buf, "+CGPSINFO:");
-    if (!info) return false;
-
-    int parsed = sscanf(info, "+CGPSINFO: %f,%c,%f,%c",
-                        &lat_raw, &ns, &lon_raw, &ew);
-    if (parsed != 4) {
-        ESP_LOGW(TAG, "GPS fix not available yet");
-        return false;
-    }
-
-    // Convert DDMM.MMMM to decimal degrees
-    int lat_deg = (int)(lat_raw / 100);
-    float lat_min = lat_raw - (lat_deg * 100);
-    *latitude = lat_deg + (lat_min / 60.0f);
-    if (ns == 'S') *latitude = -*latitude;
-
-    int lon_deg = (int)(lon_raw / 100);
-    float lon_min = lon_raw - (lon_deg * 100);
-    *longitude = lon_deg + (lon_min / 60.0f);
-    if (ew == 'W') *longitude = -*longitude;
-
-    ESP_LOGI(TAG, "GPS fix: %.6f, %.6f", *latitude, *longitude);
-    return true;
-}
-
-// ─── Connect to MQTT broker via SSL ─────────────────
-bool sim7600_mqtt_connect(void)
-{
-    ESP_LOGI(TAG, "Connecting to MQTT broker...");
-
-    // Set APN for Hologram
-    at_send("AT+CGDCONT=1,\"IP\",\"hologram\"", "OK", 2000);
-
-    // Activate data connection
-    at_send("AT+CGACT=1,1", "OK", 5000);
-
-    // Set MQTT parameters
-    at_send("AT+CMQTTSTART", "OK", 3000);
-
-    char cmd[256];
-
-    // Acquire client
-    snprintf(cmd, sizeof(cmd),
-             "AT+CMQTTACCQ=0,\"jeep_esp32\",1");
-    at_send(cmd, "OK", 2000);
-
-    // Set SSL context
-    at_send("AT+CMQTTSSLCFG=0,0", "OK", 1000);
-
-    // Set credentials
-    snprintf(cmd, sizeof(cmd),
-             "AT+CMQTTCONNPARA=0,\"%s\",\"%s\"",
-             MQTT_USER, MQTT_PASS);
-    at_send(cmd, "OK", 2000);
-
-    // Connect to broker
-    snprintf(cmd, sizeof(cmd),
-             "AT+CMQTTCONN=0,\"%s\",%d,60,1",
-             MQTT_BROKER, MQTT_PORT);
-    if (at_send(cmd, "+CMQTTCONN: 0,0", 10000)) {
-        ESP_LOGI(TAG, "MQTT connected");
-        return true;
-    }
-
-    ESP_LOGE(TAG, "MQTT connection failed");
-    return false;
-}
-
-// ─── Publish to MQTT topic ──────────────────────────
-bool sim7600_mqtt_publish(const char *topic, const char *payload)
-{
-    char cmd[256];
-
-    snprintf(cmd, sizeof(cmd),
-             "AT+CMQTTTOPIC=0,%d", strlen(topic));
-    at_send(cmd, ">", 1000);
-    uart_write_bytes(SIM_UART_NUM, topic, strlen(topic));
+    if (!s_modem_on) { gpio_set_level(PIN_SIM_PWR_EN, 0); return; }
+    at_cmd("AT+CPOF", 2000);               /* graceful shutdown           */
     vTaskDelay(pdMS_TO_TICKS(500));
-
-    snprintf(cmd, sizeof(cmd),
-             "AT+CMQTTPAYLOAD=0,%d", strlen(payload));
-    at_send(cmd, ">", 1000);
-    uart_write_bytes(SIM_UART_NUM, payload, strlen(payload));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    if (at_send("AT+CMQTTPUB=0,1,60", "OK", 3000)) {
-        ESP_LOGI(TAG, "Published to %s: %s", topic, payload);
-        return true;
-    }
-
-    ESP_LOGE(TAG, "Publish failed");
-    return false;
+    gpio_set_level(PIN_SIM_PWR_EN, 0);     /* kill rail -> ~0 draw        */
+    gpio_set_level(PIN_LED_CELL, LED_OFF);
+    s_modem_on = false;
+    ESP_LOGI(TAG, "modem off");
 }
 
-// ─── Subscribe to MQTT topic ────────────────────────
-bool sim7600_mqtt_subscribe(const char *topic)
+/* Returns true and fills lat/lon on a valid fix. */
+bool sim7600_get_gps(float *lat, float *lon)
 {
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd),
-             "AT+CMQTTSUB=0,\"%s\",1", topic);
-    if (at_send(cmd, "OK", 3000)) {
-        ESP_LOGI(TAG, "Subscribed to %s", topic);
-        return true;
-    }
-    return false;
-}
-
-// ─── Main SIM7600 FreeRTOS task ─────────────────────
-void sim7600_task(void *pvParameters)
-{
-    char buf[512] = {0};
-
-    sim7600_power_on();
-    sim7600_mqtt_connect();
-    sim7600_mqtt_subscribe(TOPIC_GPS_REQ);
-
-    ESP_LOGI(TAG, "Waiting for GPS requests...");
-
-    while (1) {
-        // Check for incoming MQTT messages
-        int len = uart_read_bytes(SIM_UART_NUM, buf,
-                                  sizeof(buf) - 1,
-                                  pdMS_TO_TICKS(1000));
-        if (len > 0) {
-            buf[len] = '\0';
-
-            // Check if it's a GPS request
-            if (strstr(buf, TOPIC_GPS_REQ)) {
-                ESP_LOGI(TAG, "GPS request received");
-
-                float lat, lon;
-                if (sim7600_get_gps(&lat, &lon)) {
-                    char payload[64];
-                    snprintf(payload, sizeof(payload),
-                             "{\"lat\":%.6f,\"lon\":%.6f}",
-                             lat, lon);
-                    sim7600_mqtt_publish(TOPIC_GPS_DATA,
-                                        payload);
-                } else {
-                    sim7600_mqtt_publish(TOPIC_GPS_DATA,
-                                        "{\"error\":\"no_fix\"}");
+    at_cmd("AT+CGPS=1", 1000);             /* ensure GPS engine on        */
+    char buf[UART_BUF];
+    for (int i = 0; i < 60; i++) {         /* up to ~60s for first fix    */
+        uart_flush_input(SIM_UART_PORT);
+        uart_write_bytes(SIM_UART_PORT, "AT+CGPSINFO\r\n", 13);
+        int n = uart_read_bytes(SIM_UART_PORT, (uint8_t *)buf,
+                                sizeof(buf) - 1, pdMS_TO_TICKS(1000));
+        if (n > 0) {
+            buf[n] = '\0';
+            /* +CGPSINFO: lat,N/S,lon,E/W,date,utc,alt,speed,course */
+            char *p = strstr(buf, "+CGPSINFO:");
+            if (p && p[10] != ',' && p[11] != ',') {
+                /* Parse NMEA ddmm.mmmm into decimal degrees. */
+                float la, lo; char ns, ew;
+                if (sscanf(p + 10, " %f,%c,%f,%c", &la, &ns, &lo, &ew) == 4) {
+                    float lad = (int)(la / 100) + fmodf(la, 100.0f) / 60.0f;
+                    float lod = (int)(lo / 100) + fmodf(lo, 100.0f) / 60.0f;
+                    if (ns == 'S') lad = -lad;
+                    if (ew == 'W') lod = -lod;
+                    *lat = lad; *lon = lod;
+                    return true;
                 }
             }
         }
-
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    return false;
+}
+
+/* --- MQTT (using the modem's built-in stack, CMQTT* commands) --- */
+static bool mqtt_connect(void)
+{
+    /* TODO: set APN, start MQTT service, connect to HiveMQ over TLS.
+     * Credentials come from NVS/menuconfig, not source. Sketch: */
+    at_cmd("AT+CGDCONT=1,\"IP\",\"hologram\"", 2000);
+    at_cmd("AT+CMQTTSTART", 5000);
+    /* ... CMQTTACCQ / CMQTTSSLCFG / CMQTTCONNECT with broker creds ... */
+    return true;
+}
+
+void sim7600_publish_status(const char *status)
+{
+    /* Best-effort: only meaningful when modem+MQTT are up. Caller is
+     * responsible for power/connect lifecycle in the task below. */
+    ESP_LOGI(TAG, "status -> %s", status);
+    /* AT+CMQTTTOPIC / CMQTTPAYLOAD / CMQTTPUB ... topic MQTT_TOPIC_STATUS */
+}
+
+void sim7600_publish_gps(float lat, float lon)
+{
+    char payload[64];
+    snprintf(payload, sizeof(payload),
+             "{\"lat\":%.5f,\"lon\":%.5f}", lat, lon);
+    ESP_LOGI(TAG, "gps -> %s", payload);
+    /* publish to MQTT_TOPIC_GPS_DATA */
+}
+
+void sim7600_publish_alert(const char *reason)
+{
+    ESP_LOGW(TAG, "ALERT -> %s", reason);
+    /* publish to MQTT_TOPIC_ALERT - highest priority message */
+}
+
+/* One full report cycle: power on, fix, publish, (optionally) stay for
+ * a request window, then power off. Used by the check-in / alarm paths. */
+bool sim7600_report_cycle(bool is_alert, const char *reason)
+{
+    if (!sim7600_power_on()) return false;
+    mqtt_connect();
+
+    if (is_alert) sim7600_publish_alert(reason);
+
+    float lat, lon;
+    if (sim7600_get_gps(&lat, &lon)) {
+        sim7600_publish_gps(lat, lon);
+    } else {
+        ESP_LOGW(TAG, "no GPS fix this cycle");
+    }
+    return true;
 }

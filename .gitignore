@@ -1,0 +1,12 @@
+build/
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
+secrets.h
+*-backups/
+*.kicad_pcb-bak
+*.kicad_sch-bak
+fp-info-cache
+*.bak
